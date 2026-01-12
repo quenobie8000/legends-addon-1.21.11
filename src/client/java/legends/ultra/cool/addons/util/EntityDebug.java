@@ -12,29 +12,22 @@ public class EntityDebug {
 
     public static void dumpTargetFiltered(LivingEntity e) {
         MinecraftClient client = MinecraftClient.getInstance();
-        String mobName;
-        double maxHp = 0;
-
         if (client.player == null || client.world == null) return;
-
         if (!(e instanceof LivingEntity mob)) {
             client.player.sendMessage(Text.literal("[LegendsAddon] Target is not a LivingEntity"),false);
             return;
         }
 
-        mobName =  mob.getDisplayName().getString();
-        if (mobName.matches("\\d+")) maxHp = Double.parseDouble(mobName.replaceAll(".*?(\\d+).*\\/(\\d+).*", "$2"));
+        String mobName =  mob.getDisplayName().getString();
+        double[] mobStats = getMobStats(mob);
+        double maxHp = mobStats[1];
+        double itemDef = mobStats[2];
+        double itemDmg = mobStats[3];
 
-
-        ItemStack main = mob.getMainHandStack();
-        double itemDef = readCustomInt(main, "def");
-        double itemDmg = readCustomInt(main, "dmg");
-
-        client.player.sendMessage(Text.literal("Mob: " + mobName),false);
-        client.player.sendMessage(Text.literal("MaxHP: " + maxHp + "\ndef: " + itemDef + "\ndmg: " + itemDmg),false);
+        client.player.sendMessage(Text.literal("\nMob: " + mobName + "\nMaxHP: " + maxHp + "\ndef: " + itemDef + "\ndmg: " + itemDmg),false);
     }
 
-    public double[] getMobStats(LivingEntity e) {
+    public static double[] getMobStats(LivingEntity e) {
 
         ItemStack main = e.getMainHandStack();
         String mobName;
@@ -45,8 +38,8 @@ public class EntityDebug {
         double itemDmg = readCustomInt(main, "dmg");
 
         mobName =  e.getDisplayName().getString();
-        if (mobName.matches("\\d+")) currentHp = Double.parseDouble(mobName.replaceAll(".*?(\\d+).*\\/(\\d+).*", "$1"));
-        if (mobName.matches("\\d+")) maxHp = Double.parseDouble(mobName.replaceAll(".*?(\\d+).*\\/(\\d+).*", "$2"));
+        if (mobName.matches(".*?(\\d+).*\\/(\\d+).*")) currentHp = Double.parseDouble(mobName.replaceAll(".*?(\\d+).*\\/(\\d+).*", "$1"));
+        if (mobName.matches(".*?(\\d+).*\\/(\\d+).*")) maxHp = Double.parseDouble(mobName.replaceAll(".*?(\\d+).*\\/(\\d+).*", "$2"));
 
         return new double[]{currentHp, maxHp, itemDef, itemDmg};
     }
