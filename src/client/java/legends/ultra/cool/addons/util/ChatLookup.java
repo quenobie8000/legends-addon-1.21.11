@@ -14,17 +14,13 @@ public final class ChatLookup {
 
 
     public static String getResult() {
-        boolean completed = ChatLookup.consumeExact("completed");
-        boolean failed = ChatLookup.consumeExact("failed");
-
-        if (completed) {
-            result = "completed";
-        } else if (failed) {
-            result = "failed";
-        }
-
         return result;
     }
+
+    public static void setResult(String value) {
+        result = value;
+    }
+
 
     private static final java.util.Set<String> triggers = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final java.util.Set<String> fired = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -37,23 +33,38 @@ public final class ChatLookup {
         triggers.add(message.toLowerCase());
     }
 
-    /**
-     * Register the chat listener ONCE.
-     */
     public static void init() {
         if (initialized) return;
         initialized = true;
 
-        ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, params, receptionTimestamp) -> {
-            String plain = message.getString().toLowerCase();
+        // Normal chat (what you THINK you're listening to)
+        ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, params, ts) -> {
+            String plain = normalize(message.getString());
+            System.out.println("[LEGENDS][CHAT] " + plain);
+            matchTriggers(plain);
+        });
 
-            // exact-match triggers
-            if (triggers.contains(plain)) {
-                fired.add(plain);
-                System.out.println(getResult());
-            }
+        // Game messages / overlay (some mods reroute to here)
+        ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
+            String plain = normalize(message.getString());
+            System.out.println("[LEGENDS][GAME overlay=" + overlay + "] " + plain);
+            matchTriggers(plain);
         });
     }
+
+    private static void matchTriggers(String plain) {
+        for (String t : triggers) {
+            if (plain.contains(t)) {
+                fired.add(t);
+            }
+        }
+    }
+
+    private static String normalize(String s) {
+        // lower + strip weird invisible chars that some chat mods insert
+        return s.toLowerCase().replaceAll("\\p{C}", "");
+    }
+
 
     public static boolean consumeExact(String message) {
         if (message == null) return false;

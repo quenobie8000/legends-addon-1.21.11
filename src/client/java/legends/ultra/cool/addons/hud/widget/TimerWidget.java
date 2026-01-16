@@ -45,6 +45,7 @@ public class TimerWidget extends HudWidget{
         ticksElapsed = 0;
         value = 0;
         start = false;
+        ChatLookup.setResult("");
     }
 
     public static int DungeonResultColor(String result) {

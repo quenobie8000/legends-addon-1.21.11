@@ -36,7 +36,7 @@ public class LegendsAddonClient implements ClientModInitializer {
         ChatLookup.watchExact("stop");
         ChatLookup.watchExact("reset");
         ChatLookup.watchExact("completed");
-        ChatLookup.watchExact("failed");
+        ChatLookup.watchExact("corrupt rift failed!you have failed to complete the corrupt riftyou may retry at any time.");
         ChatLookup.init();
 
         TextWidget textWidget = new TextWidget(10, 10, "test");
