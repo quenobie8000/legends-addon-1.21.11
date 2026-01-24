@@ -34,6 +34,8 @@ public final class ScoreboardLookup {
                             ? entry.display().getString()
                             : entry.owner();
 
+            System.out.println(line);
+
             if (line != null && line.toLowerCase().contains(search)) {
                 return true;
             }

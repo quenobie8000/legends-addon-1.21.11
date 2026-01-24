@@ -32,14 +32,7 @@ public class LegendsAddonClient implements ClientModInitializer {
         WorldJoinLeaveHandler.init();
         ClientTickHandler.init();
 
-        ChatLookup.watchExact("start");
-        ChatLookup.watchExact("stop");
-        ChatLookup.watchExact("reset");
-        ChatLookup.watchExact("completed");
-        ChatLookup.watchExact("corrupt rift failed!you have failed to complete the corrupt riftyou may retry at any time.");
-        ChatLookup.init();
-
-        TextWidget textWidget = new TextWidget(10, 10, "test");
+        TextWidget textWidget = new TextWidget(10, 10);
         CounterWidget counterWidget = new CounterWidget(10, 30);
         TimerWidget timerWidget = new TimerWidget(10, 50);
         NameplateWidget nameplateWidget = new NameplateWidget();

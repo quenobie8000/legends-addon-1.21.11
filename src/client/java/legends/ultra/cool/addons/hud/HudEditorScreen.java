@@ -7,32 +7,49 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
-import javax.naming.Context;
-import java.util.function.Consumer;
+import java.util.List;
+import java.util.Optional;
 
 public class HudEditorScreen extends Screen {
     private static final int PANEL_WIDTH = 120;
     private static final int HEADER_HEIGHT = 16;
     private static final int ROW_HEIGHT = 14;
+    private static final int MODAL_W = 220;
+    private static final int MODAL_H = 180;
+    private static final int MODAL_PAD = 8;
+
+    // Settings rows
+    private static final int SETTINGS_ROW_H = 16;
+    private static final int SETTINGS_ROW_GAP = 6;
+
+    // Reset button
+    private static final int RESET_W = 12;
+    private static final int RESET_H = 12;
 
     private HudWidget dragging;
     private double lastMouseX, lastMouseY;
     private boolean panelExpanded = true;
 
     private HudWidget settingsWidget = null; // null = closed
-    private final int MODAL_W = 220;
-    private final int MODAL_H = 140;
 
+    // Color picker
+    private ColorPicker colorPicker = null;
+    private String openColorKey = null; // which setting key opened it
+
+    // Slider drag state
     private String draggingSliderKey = null;
+
+    public HudEditorScreen() {
+        super(Text.literal("HUD Editor"));
+    }
 
     private boolean isSettingsOpen() {
         return settingsWidget != null;
     }
 
-    private ColorPicker colorPicker = null;
-    private PickerTarget openPicker = PickerTarget.NONE;
-
-    private enum PickerTarget {NONE, BG, TEXT, BORDER}
+    private int panelX() {
+        return this.width - PANEL_WIDTH;
+    }
 
     private int modalX() {
         int base = (this.width - MODAL_W) / 2;
@@ -46,31 +63,39 @@ public class HudEditorScreen extends Screen {
         return base;
     }
 
-
     private int modalY() {
         return (this.height - MODAL_H) / 2;
     }
 
-    private int panelX() {
-        return this.width - PANEL_WIDTH;
+    private int modalW() {
+        return MODAL_W;
     }
 
-    public HudEditorScreen() {
-        super(Text.literal("HUD Editor"));
+    private static boolean inside(double mx, double my, int x, int y, int w, int h) {
+        return mx >= x && mx <= x + w && my >= y && my <= y + h;
     }
+
+    private static List<HudWidget.HudSetting> safeSettings(HudWidget w) {
+        return Optional.ofNullable(w.getSettings()).orElse(List.of());
+    }
+
+    // -----------------------------------
+    // Mouse input
+    // -----------------------------------
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         int x = panelX();
 
-        // Header click (collapse/expand) FIRST
-        int headerLeft = panelExpanded ? x : x + PANEL_WIDTH - HEADER_HEIGHT;
-        int headerRight = x + PANEL_WIDTH;
-
+        // If settings modal is open, handle it first
         if (isSettingsOpen()) {
             if (colorPicker != null && colorPicker.mouseClicked(mouseX, mouseY, button)) return true;
             return handleSettingsClick(mouseX, mouseY, button);
         }
+
+        // Header click (collapse/expand)
+        int headerLeft = panelExpanded ? x : x + PANEL_WIDTH - HEADER_HEIGHT;
+        int headerRight = x + PANEL_WIDTH;
 
         if (mouseX >= headerLeft && mouseX <= headerRight
                 && mouseY >= 0 && mouseY <= HEADER_HEIGHT) {
@@ -100,13 +125,14 @@ public class HudEditorScreen extends Screen {
             int x2 = x + PANEL_WIDTH - ROW_HEIGHT - 5;
             int y2 = y + ROW_HEIGHT;
 
+            // toggle enabled
             if (mouseX >= x1 && mouseX <= x2 && mouseY >= y1 && mouseY <= y2 && widget != null) {
                 widget.toggle();
                 WidgetConfigManager.updateWidget(widget);
                 return true;
             }
 
-            //settings
+            // settings button
             int sx1 = x + PANEL_WIDTH - ROW_HEIGHT - 5;
             int sy1 = y;
             int sx2 = x + PANEL_WIDTH - 5;
@@ -134,48 +160,47 @@ public class HudEditorScreen extends Screen {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
-        // If modal open, drag picker or slider
+        // Settings modal drag (slider / picker)
         if (isSettingsOpen()) {
             if (colorPicker != null && colorPicker.mouseDragged(mouseX, mouseY, button, dx, dy)) return true;
 
-            // Slider dragging (works only if a slider started drag via handleSettingsClick/rowSlider)
+            // Slider dragging: only if we started drag on a slider bar
             if (draggingSliderKey != null) {
                 SettingsLayout l = beginSettingsLayout();
 
-                for (HudWidget.HudSetting s : settingsWidget.getSettings()) {
-                    // consume rows in the exact same order
-                    if (s.type() == HudWidget.HudSetting.Type.TOGGLE) {
-                        nextRowY(l);
-                    } else if (s.type() == HudWidget.HudSetting.Type.COLOR) {
-                        nextRowY(l);
-                    } else if (s.type() == HudWidget.HudSetting.Type.SLIDER) {
-                        int rowY = nextRowY(l);
+                for (HudWidget.HudSetting s : safeSettings(settingsWidget)) {
+                    int rowY = nextRowY(l);
 
-                        if (!s.key().equals(draggingSliderKey)) continue;
+                    if (s.type() != HudWidget.HudSetting.Type.SLIDER) continue;
+                    if (!s.key().equals(draggingSliderKey)) continue;
+                    if (!s.enabled().getAsBoolean()) continue;
 
-                        int barX = l.btnX - 70;
-                        int barW = 120;
+                    int barX = l.sliderBarX;
+                    int barW = l.sliderBarW;
+                    int barY = rowY - 1;
+                    int barH = 12;
 
-                        float t = (float)((mouseX - barX) / (double)barW);
-                        t = Math.max(0f, Math.min(1f, t));
-                        float raw = s.min() + t * (s.max() - s.min());
-                        float snapped = (s.step() > 0f) ? (Math.round(raw / s.step()) * s.step()) : raw;
-                        snapped = Math.max(s.min(), Math.min(s.max(), snapped));
+                    float t = (float) ((mouseX - barX) / (double) barW);
+                    t = Math.max(0f, Math.min(1f, t));
+                    float raw = s.min() + t * (s.max() - s.min());
 
-                        WidgetConfigManager.setFloat(settingsWidget.getName(), s.key(), snapped, true);
-                        return true;
-                    }
+                    float snapped = (s.step() > 0f)
+                            ? (Math.round(raw / s.step()) * s.step())
+                            : raw;
+
+                    snapped = Math.max(s.min(), Math.min(s.max(), snapped));
+                    s.setFloat().accept(snapped);
+                    WidgetConfigManager.updateWidget(settingsWidget);
+                    return true;
                 }
             }
 
-            // IMPORTANT: don't swallow the event, or nothing else will work
             return false;
         }
 
-        // normal canvas dragging
+        // Normal canvas dragging
         if (dragging != null) {
             dragging.x += dx;
             dragging.y += dy;
@@ -188,12 +213,9 @@ public class HudEditorScreen extends Screen {
         return super.mouseDragged(mouseX, mouseY, button, dx, dy);
     }
 
-
-
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (isSettingsOpen()) {
-            // stop slider dragging
             draggingSliderKey = null;
 
             if (colorPicker != null && colorPicker.mouseReleased(mouseX, mouseY, button)) {
@@ -212,117 +234,166 @@ public class HudEditorScreen extends Screen {
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
+    // -----------------------------------
+    // Settings modal: input logic
+    // -----------------------------------
 
-    private static boolean inside(double mx, double my, int x, int y, int w, int h) {
-        return mx >= x && mx <= x + w && my >= y && my <= y + h;
-    }
-
-    private void openPicker(PickerTarget target, int px, int py, int pw, int ph) {
-        openPicker = target;
-
-        if (target == PickerTarget.NONE) {
+    private void openColorPicker(HudWidget.HudSetting s, int px, int py, int pw) {
+        if (openColorKey != null && openColorKey.equals(s.key())) {
+            openColorKey = null;
             colorPicker = null;
             return;
         }
 
-        colorPicker = switch (target) {
-            case NONE -> null;
-            case BG -> new ColorPicker(px, py, pw,
-                    () -> settingsWidget.style.backgroundColor,
-                    c -> {
-                        settingsWidget.style.backgroundColor = c;
-                        WidgetConfigManager.setInt(settingsWidget.getName(), "backgroundColor", c, true);
-                    });
-
-            case BORDER -> new ColorPicker(px, py, pw,
-                    () -> settingsWidget.style.borderColor,
-                    c -> {
-                        settingsWidget.style.borderColor = c;
-                        WidgetConfigManager.setInt(settingsWidget.getName(), "borderColor", c, true);
-                    });
-
-            case TEXT -> new ColorPicker(px, py, pw,
-                    () -> settingsWidget.style.textColor,
-                    c -> {
-                        settingsWidget.style.textColor = c;
-                        WidgetConfigManager.setInt(settingsWidget.getName(), "textColor", c, true);
-                    });
-        };
+        openColorKey = s.key();
+        colorPicker = new ColorPicker(
+                px, py, pw,
+                () -> s.getColor().getAsInt(),
+                c -> {
+                    s.setColor().accept(c);
+                    WidgetConfigManager.updateWidget(settingsWidget);
+                }
+        );
     }
 
     private boolean handleSettingsClick(double mouseX, double mouseY, int button) {
         int x = modalX();
         int y = modalY();
+        int w = modalW();
 
         // Close "✕"
-        int closeX = x + MODAL_W - 14;
+        String close = "✕";
+        int closeX = x + w - 14;
         int closeY = y + 6;
-        int cw = textRenderer.getWidth("✕");
+        int cw = textRenderer.getWidth(close);
         int ch = textRenderer.fontHeight;
 
         if (inside(mouseX, mouseY, closeX, closeY, cw, ch)) {
             WidgetConfigManager.updateWidget(settingsWidget);
             settingsWidget = null;
-            openPicker(PickerTarget.NONE, 0, 0, 0, 0);
+            colorPicker = null;
+            openColorKey = null;
+            draggingSliderKey = null;
             return true;
         }
 
         SettingsLayout l = beginSettingsLayout();
 
-        for (HudWidget.HudSetting s : settingsWidget.getSettings()) {
+        for (HudWidget.HudSetting s : safeSettings(settingsWidget)) {
+            int rowY = nextRowY(l);
+
+            // Reset click
+            if (inside(mouseX, mouseY, l.resetX, rowY - 1, RESET_W, RESET_H)) {
+                WidgetConfigManager.clearSetting(settingsWidget.getName(), s.key(), true);
+
+                // apply default back into the widget fields by invoking getter+setter once
+                switch (s.type()) {
+                    case TOGGLE -> s.setBool().accept(s.getBool().getAsBoolean());
+                    case COLOR -> s.setColor().accept(s.getColor().getAsInt());
+                    case SLIDER -> s.setFloat().accept((float) s.getFloat().getAsDouble());
+                }
+
+                if (openColorKey != null && openColorKey.equals(s.key())) {
+                    openColorKey = null;
+                    colorPicker = null;
+                }
+                if (draggingSliderKey != null && draggingSliderKey.equals(s.key())) {
+                    draggingSliderKey = null;
+                }
+
+                WidgetConfigManager.updateWidget(settingsWidget);
+                return true;
+            }
+
             switch (s.type()) {
                 case TOGGLE -> {
-                    boolean val = WidgetConfigManager.getBool(settingsWidget.getName(), s.key(), false);
-
-                    if (rowToggle(null, l, mouseX, mouseY, s.label(), val, () -> {
-                        boolean newVal = !WidgetConfigManager.getBool(settingsWidget.getName(), s.key(), false);
-                        WidgetConfigManager.setBool(settingsWidget.getName(), s.key(), newVal, true);
-
-                        // Keep WidgetStyle in sync if this toggle is a style toggle
-                        if (s.key().equals("drawBackground")) settingsWidget.style.drawBackground = newVal;
-                        if (s.key().equals("drawBorder")) settingsWidget.style.drawBorder = newVal;
-
-                        // Close picker if we turned off the feature it belongs to
-                        if (!newVal && s.key().equals("drawBackground") && openPicker == PickerTarget.BG) {
-                            openPicker(PickerTarget.NONE, 0, 0, 0, 0);
-                        }
-                        if (!newVal && s.key().equals("drawBorder") && openPicker == PickerTarget.BORDER) {
-                            openPicker(PickerTarget.NONE, 0, 0, 0, 0);
-                        }
-
+                    int pillY = rowY - 2;
+                    if (s.enabled().getAsBoolean() && inside(mouseX, mouseY, l.toggleX, pillY, l.toggleW, l.btnH)) {
+                        boolean newVal = !s.getBool().getAsBoolean();
+                        s.setBool().accept(newVal);
                         WidgetConfigManager.updateWidget(settingsWidget);
-                    })) return true;
+
+                        // If we turned off the setting that owns the open color picker, close it.
+                        if (!newVal && openColorKey != null) {
+                            if (openColorKey.equals("bgColor") || openColorKey.equals("brdColor") || openColorKey.equals("textColor")) {
+                                // we don't know which toggle controls which color globally,
+                                // but closing is harmless + avoids stuck pickers.
+                                openColorKey = null;
+                                colorPicker = null;
+                            }
+                        }
+                        return true;
+                    }
                 }
 
                 case COLOR -> {
-                    int argb = WidgetConfigManager.getInt(settingsWidget.getName(), s.key(), 0xFFFFFFFF);
+                    if (!s.enabled().getAsBoolean()) break;
 
-                    boolean enabled = true;
-                    if (s.key().equals("backgroundColor")) enabled = settingsWidget.style.drawBackground;
-                    if (s.key().equals("borderColor")) enabled = settingsWidget.style.drawBorder;
+                    int btnY = rowY - 2;
+                    if (inside(mouseX, mouseY, l.btnX, btnY, l.btnW, l.btnH)) {
+                        // open picker to the right of modal by default
+                        int gap = 6;
+                        int pickerW = 180;
 
-                    // IMPORTANT: your current code uses "bgColor" but your config keys are "backgroundColor"
-                    PickerTarget target =
-                            s.key().equals("backgroundColor") ? PickerTarget.BG :
-                                    s.key().equals("borderColor") ? PickerTarget.BORDER :
-                                            PickerTarget.TEXT;
+                        int px = modalX() + modalW() + gap;
+                        int py = modalY();
 
-                    if (rowColorPicker(null, l, mouseX, mouseY, s.label(), enabled, argb, target)) return true;
+                        if (px + pickerW > this.width) {
+                            px = modalX() - pickerW - gap;
+                        }
+
+                        openColorPicker(s, px, py, pickerW);
+                        return true;
+                    }
                 }
 
                 case SLIDER -> {
-                    float val = WidgetConfigManager.getFloat(settingsWidget.getName(), s.key(), s.min());
+                    if (!s.enabled().getAsBoolean()) break;
 
-                    if (rowSlider(null, l, mouseX, mouseY, s.label(),
-                            val, s.min(), s.max(), s.step(),
-                            s.key(),
-                            newVal -> WidgetConfigManager.setFloat(settingsWidget.getName(), s.key(), newVal, true)
-                    )) return true;
+                    int barX = l.sliderBarX;
+                    int barY = rowY - 1;
+                    int barW = l.sliderBarW;
+                    int barH = 12;
+
+                    if (inside(mouseX, mouseY, barX, barY, barW, barH)) {
+                        draggingSliderKey = s.key();
+
+                        float t = (float) ((mouseX - barX) / (double) barW);
+                        t = Math.max(0f, Math.min(1f, t));
+                        float raw = s.min() + t * (s.max() - s.min());
+
+                        float snapped = (s.step() > 0f)
+                                ? (Math.round(raw / s.step()) * s.step())
+                                : raw;
+
+                        snapped = Math.max(s.min(), Math.min(s.max(), snapped));
+                        s.setFloat().accept(snapped);
+                        WidgetConfigManager.updateWidget(settingsWidget);
+                        return true;
+                    }
                 }
             }
         }
 
         return true;
+    }
+
+    // -----------------------------------
+    // Rendering
+    // -----------------------------------
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        this.renderBackground(context, mouseX, mouseY, delta);
+        super.render(context, mouseX, mouseY, delta);
+
+        for (HudWidget widget : HudManager.getWidgets()) {
+            if (widget.isEnabled()) widget.render(context);
+        }
+
+        renderWidgetList(context);
+        renderPanelHeader(context);
+        renderSettingsModal(context, mouseX, mouseY);
     }
 
     private void renderPanelHeader(DrawContext context) {
@@ -347,7 +418,6 @@ public class HudEditorScreen extends Screen {
         );
     }
 
-
     private void renderWidgetList(DrawContext context) {
         if (!panelExpanded) return;
 
@@ -363,15 +433,11 @@ public class HudEditorScreen extends Screen {
         );
 
         for (HudWidget widget : HudManager.getWidgets()) {
-            int bgColor = widget.isEnabled()
-                    ? 0xFF2ECC71
-                    : 0xFF7F8C8D;
+            int bgColor = widget.isEnabled() ? 0xFF2ECC71 : 0xFF7F8C8D;
 
             context.fill(
-                    x + 5,
-                    y,
-                    x + PANEL_WIDTH - 5,
-                    y + ROW_HEIGHT,
+                    x + 5, y,
+                    x + PANEL_WIDTH - 5, y + ROW_HEIGHT,
                     bgColor
             );
 
@@ -384,14 +450,12 @@ public class HudEditorScreen extends Screen {
                     false
             );
 
+            // settings button
             context.fill(
-                    x + PANEL_WIDTH - ROW_HEIGHT - 5,
-                    y,
-                    x + PANEL_WIDTH - 5,
-                    y + ROW_HEIGHT,
+                    x + PANEL_WIDTH - ROW_HEIGHT - 5, y,
+                    x + PANEL_WIDTH - 5, y + ROW_HEIGHT,
                     0xFF7F8C8D
             );
-
 
             context.drawText(
                     MinecraftClient.getInstance().textRenderer,
@@ -411,14 +475,15 @@ public class HudEditorScreen extends Screen {
 
         int x = modalX();
         int y = modalY();
+        int w = modalW();
         int gap = 6;
 
         // dim background
         ctx.fill(0, 0, this.width, this.height, 0x88000000);
 
-        // panel
-        ctx.fill(x, y, x + MODAL_W, y + MODAL_H, 0xFF111111);
-        ctx.drawBorder(x, y, MODAL_W, MODAL_H, 0xFFFFFFFF);
+        // modal
+        ctx.fill(x, y, x + w, y + MODAL_H, 0xFF111111);
+        ctx.drawBorder(x, y, w, MODAL_H, 0xFFFFFFFF);
 
         // title
         ctx.drawText(textRenderer,
@@ -427,57 +492,50 @@ public class HudEditorScreen extends Screen {
                 0xFFFFFF, false
         );
 
-        // close button (text)
+        // close button
         String close = "✕";
-        int closeX = x + MODAL_W - 14;
+        int closeX = x + w - 14;
         int closeY = y + 6;
         ctx.drawText(textRenderer, close, closeX, closeY, 0xFFFFFF, false);
 
         SettingsLayout l = beginSettingsLayout();
 
-        for (HudWidget.HudSetting s : settingsWidget.getSettings()) {
+        for (HudWidget.HudSetting s : safeSettings(settingsWidget)) {
+            int rowY = nextRowY(l);
+
+            // reset button per row
+            drawResetButton(ctx, l.resetX, rowY - 1, mouseX, mouseY);
+
             switch (s.type()) {
                 case TOGGLE -> {
-                    boolean val = switch (s.key()) {
-                        case "drawBackground" -> settingsWidget.style.drawBackground;
-                        case "drawBorder" -> settingsWidget.style.drawBorder;
-                        default -> false; // (or read from config if you add it)
-                    };
-                    rowToggle(ctx, l, mouseX, mouseY, s.label(), val, () -> {});
+                    boolean enabled = s.enabled().getAsBoolean();
+                    boolean val = s.getBool().getAsBoolean();
+
+                    ctx.drawText(textRenderer, s.label(), l.startX, rowY, enabled ? 0xFFFFFF : 0x777777, false);
+                    drawTogglePill(ctx, l.toggleX, rowY - 2, l.toggleW, l.btnH, val, enabled);
                 }
 
                 case COLOR -> {
-                    int argb = switch (s.key()) {
-                        case "backgroundColor" -> settingsWidget.style.backgroundColor;
-                        case "borderColor" -> settingsWidget.style.borderColor;
-                        case "textColor" -> settingsWidget.style.textColor;
-                        default -> 0xFFFFFFFF;
-                    };
+                    boolean enabled = s.enabled().getAsBoolean();
+                    int argb = s.getColor().getAsInt();
 
-                    boolean enabled = true;
-                    if (s.key().equals("backgroundColor")) enabled = settingsWidget.style.drawBackground;
-                    if (s.key().equals("borderColor")) enabled = settingsWidget.style.drawBorder;
+                    ctx.drawText(textRenderer, s.label(), l.startX, rowY, enabled ? 0xFFFFFF : 0x777777, false);
 
-                    PickerTarget target =
-                            s.key().equals("backgroundColor") ? PickerTarget.BG :
-                                    s.key().equals("borderColor") ? PickerTarget.BORDER :
-                                            PickerTarget.TEXT;
-
-                    rowColorPicker(ctx, l, mouseX, mouseY, s.label(), enabled, argb, target);
+                    if (enabled) {
+                        drawPickButton(ctx, l.btnX, rowY - 2, l.btnW, l.btnH, mouseX, mouseY);
+                        drawSwatch(ctx, l.btnX - 18, rowY - 1, argb);
+                    } else {
+                        ctx.drawText(textRenderer, "-", l.btnX + 26, rowY, 0x777777, false);
+                    }
                 }
 
                 case SLIDER -> {
-                    float val = WidgetConfigManager.getFloat(settingsWidget.getName(), s.key(), s.min());
-                    rowSlider(
-                            ctx, l,
-                            mouseX, mouseY,
-                            s.label(),
-                            val, s.min(), s.max(), s.step(),
-                            s.key(),
-                            newVal -> WidgetConfigManager.setFloat(settingsWidget.getName(), s.key(), newVal, true)
-                    );
-                }
+                    boolean enabled = s.enabled().getAsBoolean();
+                    float val = (float) s.getFloat().getAsDouble();
 
+                    ctx.drawText(textRenderer, s.label(), l.startX, rowY, enabled ? 0xFFFFFF : 0x777777, false);
+                    drawSliderRow(ctx, l, rowY, mouseX, mouseY, val, s.min(), s.max(), s.step(), enabled);
+                }
             }
         }
 
@@ -485,7 +543,7 @@ public class HudEditorScreen extends Screen {
         if (colorPicker != null) {
             int pickerW = colorPicker.getWidth();
 
-            int px = modalX() + MODAL_W + gap;
+            int px = modalX() + w + gap;
             int py = modalY();
 
             if (px + pickerW > this.width) {
@@ -496,6 +554,10 @@ public class HudEditorScreen extends Screen {
             colorPicker.render(ctx, mouseX, mouseY);
         }
     }
+
+    // -----------------------------------
+    // Drawing helpers
+    // -----------------------------------
 
     private void drawPickButton(DrawContext ctx, int x, int y, int w, int h, int mouseX, int mouseY) {
         boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
@@ -510,32 +572,72 @@ public class HudEditorScreen extends Screen {
         ctx.drawBorder(x, y, 12, 12, 0xFF000000);
     }
 
-    private void drawTogglePill(DrawContext ctx, int x, int y, int w, int h, boolean on) {
+    private void drawTogglePill(DrawContext ctx, int x, int y, int w, int h, boolean on, boolean enabled) {
         int bg = on ? 0xFF2ECC71 : 0xFF7F8C8D;
+        if (!enabled) bg = 0xFF444444;
         ctx.fill(x, y, x + w, y + h, bg);
         ctx.drawBorder(x, y, w, h, 0xFF000000);
         ctx.drawText(textRenderer, on ? "ON" : "OFF", x + 10, y + 3, 0xFF000000, false);
     }
 
-    // ---- Settings row builder (render + click share the same row order) ----
-    private static final int SETTINGS_ROW_H = 16;
-    private static final int SETTINGS_ROW_GAP = 6;
+    private void drawResetButton(DrawContext ctx, int x, int y, int mouseX, int mouseY) {
+        boolean hovered = mouseX >= x && mouseX <= x + RESET_W && mouseY >= y && mouseY <= y + RESET_H;
+        int bg = hovered ? 0xFF555555 : 0xFF333333;
+        ctx.fill(x, y, x + RESET_W, y + RESET_H, bg);
+        ctx.drawBorder(x, y, RESET_W, RESET_H, 0xFF000000);
+        ctx.getMatrices().push();
+        ctx.getMatrices().translate(x + 3, y - 4, 0);
+        ctx.getMatrices().scale(2f, 2f, 1f);
+        ctx.drawText(textRenderer, "↺", 0, 0, 0xFFFFFF, false);
+        ctx.getMatrices().pop();
+    }
+
+    private void drawSliderRow(DrawContext ctx, SettingsLayout l, int rowY, int mouseX, int mouseY,
+                               float value, float min, float max, float step, boolean enabled) {
+        int barX = l.sliderBarX;
+        int barY = rowY - 1;
+        int barW = l.sliderBarW;
+        int barH = 12;
+
+        int bg = enabled ? 0xFF2A2A2A : 0xFF1F1F1F;
+        int border = 0xFF000000;
+
+        ctx.fill(barX, barY, barX + barW, barY + barH, bg);
+        ctx.drawBorder(barX, barY, barW, barH, border);
+
+        float t = (max == min) ? 0f : (value - min) / (max - min);
+        t = Math.max(0f, Math.min(1f, t));
+
+        int knobX = barX + (int) (t * (barW - 4));
+        ctx.fill(knobX, barY, knobX + 4, barY + barH, enabled ? 0xFF7F8C8D : 0xFF444444);
+
+        String v = String.format("%.2f", value);
+        ctx.drawText(textRenderer, v,
+                barX + (barW / 2) - (textRenderer.getWidth(v) / 2),
+                rowY + 1,
+                enabled ? 0xAAAAAA : 0x777777,
+                false
+        );
+    }
+
+    // -----------------------------------
+    // Settings layout (row positions)
+    // -----------------------------------
 
     private int settingsRowIndex = 0;
 
     private static final class SettingsLayout {
-        final int x, y;
         final int startX, startY;
         final int btnW, btnH, btnX;
         final int toggleW, toggleX;
-        final int pickerX, pickerY, pickerW, pickerH;
+        final int resetX;
+        final int sliderBarX, sliderBarW;
 
-        SettingsLayout(int x, int y, int startX, int startY,
+        SettingsLayout(int startX, int startY,
                        int btnW, int btnH, int btnX,
                        int toggleW, int toggleX,
-                       int pickerX, int pickerY, int pickerW, int pickerH) {
-            this.x = x;
-            this.y = y;
+                       int resetX,
+                       int sliderBarX, int sliderBarW) {
             this.startX = startX;
             this.startY = startY;
             this.btnW = btnW;
@@ -543,10 +645,9 @@ public class HudEditorScreen extends Screen {
             this.btnX = btnX;
             this.toggleW = toggleW;
             this.toggleX = toggleX;
-            this.pickerX = pickerX;
-            this.pickerY = pickerY;
-            this.pickerW = pickerW;
-            this.pickerH = pickerH;
+            this.resetX = resetX;
+            this.sliderBarX = sliderBarX;
+            this.sliderBarW = sliderBarW;
         }
     }
 
@@ -555,25 +656,35 @@ public class HudEditorScreen extends Screen {
 
         int x = modalX();
         int y = modalY();
+        int w = modalW();
 
-        int startX = x + 8;
+        int startX = x + MODAL_PAD;
         int startY = y + 28;
 
         int btnW = 60;
         int btnH = 14;
-        int btnX = x + MODAL_W - 8 - btnW;
+
+        int rightEdge = x + w - MODAL_PAD;
+
+        int resetX = rightEdge - RESET_W;
+        int controlsRight = resetX - 4;
+
+        int btnX = controlsRight - btnW;
 
         int toggleW = 42;
-        int toggleX = x + MODAL_W - 8 - toggleW;
+        int toggleX = controlsRight - toggleW;
 
-        // Picker placement “near modal” like your current code
-        int pickerW = 180;
-        int pickerH = 150;
+        // slider lives left of reset button too
+        int sliderBarW = 120;
+        int sliderBarX = controlsRight - sliderBarW;
 
-        int pickerX = x + 10;
-        int pickerY = y + MODAL_H - pickerH - 10;
-
-        return new SettingsLayout(x, y, startX, startY, btnW, btnH, btnX, toggleW, toggleX, pickerX, pickerY, pickerW, pickerH);
+        return new SettingsLayout(
+                startX, startY,
+                btnW, btnH, btnX,
+                toggleW, toggleX,
+                resetX,
+                sliderBarX, sliderBarW
+        );
     }
 
     private int nextRowY(SettingsLayout l) {
@@ -581,127 +692,4 @@ public class HudEditorScreen extends Screen {
         settingsRowIndex++;
         return rowY;
     }
-
-    private boolean rowToggle(DrawContext ctx, SettingsLayout l, double mx, double my,
-                              String label, boolean value, Runnable onToggle) {
-        int rowY = nextRowY(l);
-
-        // render
-        if (ctx != null) {
-            ctx.drawText(textRenderer, label, l.startX, rowY, 0xFFFFFF, false);
-            drawTogglePill(ctx, l.toggleX, rowY - 2, l.toggleW, l.btnH, value);
-        }
-
-        // click
-        if (ctx == null) {
-            if (inside(mx, my, l.toggleX, rowY - 2, l.toggleW, l.btnH)) {
-                onToggle.run();
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean rowColorPicker(DrawContext ctx, SettingsLayout l, double mx, double my,
-                                   String label, boolean enabled, int argb,
-                                   PickerTarget target) {
-        int rowY = nextRowY(l);
-
-        // render
-        if (ctx != null) {
-            ctx.drawText(textRenderer, label, l.startX, rowY, 0xFFFFFF, false);
-
-            if (enabled) {
-                drawPickButton(ctx, l.btnX, rowY - 2, l.btnW, l.btnH, (int) mx, (int) my);
-                drawSwatch(ctx, l.btnX - 18, rowY - 1, argb);
-            } else {
-                ctx.drawText(textRenderer, "-", l.btnX + 26, rowY, 0x777777, false);
-            }
-        }
-
-        // click
-        if (ctx == null && enabled) {
-            if (inside(mx, my, l.btnX, rowY - 2, l.btnW, l.btnH)) {
-                if (openPicker == target) openPicker(PickerTarget.NONE, 0, 0, 0, 0);
-                else openPicker(target, l.pickerX, l.pickerY, l.pickerW, l.pickerH);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean rowSlider(DrawContext ctx, SettingsLayout l, double mx, double my,
-                              String label,
-                              float value, float min, float max, float step,
-                              String sliderKey,
-                              Consumer<Float> onChange) {
-        int rowY = nextRowY(l);
-
-        int barX = l.btnX - 70;     // slider bar left (tweak if you want)
-        int barY = rowY - 1;
-        int barW = 120;
-        int barH = 12;
-
-        // render
-        if (ctx != null) {
-            ctx.drawText(textRenderer, label, l.startX, rowY, 0xFFFFFF, false);
-
-            // bar background
-            ctx.fill(barX, barY, barX + barW, barY + barH, 0xFF2A2A2A);
-            ctx.drawBorder(barX, barY, barW, barH, 0xFF000000);
-
-            float t = (max == min) ? 0f : (value - min) / (max - min);
-            t = Math.max(0f, Math.min(1f, t));
-
-            int knobX = barX + (int)(t * (barW - 4));
-            ctx.fill(knobX, barY, knobX + 4, barY + barH, 0xFF7F8C8D);
-
-            // value text
-            String v = String.format("%.2f", value);
-            ctx.drawText(textRenderer, v, barX + (barW/2) - (textRenderer.getWidth(v)/2), rowY + 1, 0xAAAAAA, false);
-        }
-
-        // click/drag start
-        if (ctx == null) {
-            if (inside(mx, my, barX, barY, barW, barH)) {
-                draggingSliderKey = sliderKey;
-
-                // set immediately on click
-                float t = (float)((mx - barX) / (double)barW);
-                t = Math.max(0f, Math.min(1f, t));
-                float raw = min + t * (max - min);
-
-                float snapped = (step > 0f) ? (Math.round(raw / step) * step) : raw;
-                snapped = Math.max(min, Math.min(max, snapped));
-                onChange.accept(snapped);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static String toHex(int argb) {
-        return String.format("#%08X", argb);
-    }
-
-    @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
-
-        super.render(context, mouseX, mouseY, delta);
-
-        for (HudWidget widget : HudManager.getWidgets()) {
-            if (widget.isEnabled()) {
-                widget.render(context);
-            }
-        }
-
-        renderWidgetList(context);
-        renderPanelHeader(context);
-        renderSettingsModal(context, mouseX, mouseY);
-    }
 }
-

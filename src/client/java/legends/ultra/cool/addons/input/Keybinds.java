@@ -1,6 +1,9 @@
 package legends.ultra.cool.addons.input;
 
 import legends.ultra.cool.addons.hud.HudEditorScreen;
+import legends.ultra.cool.addons.hud.HudManager;
+import legends.ultra.cool.addons.hud.widget.CounterWidget;
+import legends.ultra.cool.addons.hud.widget.TimerWidget;
 import legends.ultra.cool.addons.util.EntityDebug;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -18,31 +21,59 @@ public class Keybinds {
     public static void init() {
         KeyBinding openEditorKey = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding(
-                        "key.legendsaddon.hud_editor",
+                        "Toggle Editor",
                         InputUtil.Type.KEYSYM,
                         GLFW.GLFW_KEY_RIGHT_SHIFT,
-                        "category.legendsaddon"
+                        "Legends Addon"
                 )
         );
 
+        KeyBinding DUMP_MOB_KEY = KeyBindingHelper.registerKeyBinding(
+                new KeyBinding(
+                        "Dump Mob",
+                        GLFW.GLFW_KEY_K,
+                        "Legends Addon"
+                ));
+
+        KeyBinding TOGGLE_TIMER = KeyBindingHelper.registerKeyBinding(
+                new KeyBinding(
+                        "Toggle Timer",
+                        GLFW.GLFW_KEY_X,
+                        "Legends Addon"
+                ));
+
+        KeyBinding RESET_TIMER = KeyBindingHelper.registerKeyBinding(
+                new KeyBinding(
+                        "Reset Timer",
+                        GLFW.GLFW_KEY_C,
+                        "Legends Addon"
+                ));
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+
+            //OPEN EDITOR
             while (openEditorKey.wasPressed()) {
                 client.setScreen(new HudEditorScreen());
             }
-        });
 
-
-        KeyBinding DUMP_MOB_KEY = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.legendsaddon.dump_mob",      // translation key
-                GLFW.GLFW_KEY_K,                  // default key (K)
-                "category.legendsaddon.debug"     // category
-        ));
-
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // fires once per press (doesn't spam while held)
+            //MOB DEBUG
             while (DUMP_MOB_KEY.wasPressed()) {
                 dumpLookedAtMob(client);
             }
+
+            //TIMER
+            HudManager.getWidgets().forEach(widget -> {
+                if (widget instanceof TimerWidget timer && timer.enabled) {
+                    while (TOGGLE_TIMER.wasPressed()) {
+                        timer.toggleTick();
+                    }
+
+                    while (RESET_TIMER.wasPressed()) {
+                        timer.reset();
+                    }
+                }
+            });
+
         });
     }
 

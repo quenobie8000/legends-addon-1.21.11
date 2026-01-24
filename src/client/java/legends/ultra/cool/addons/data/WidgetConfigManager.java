@@ -35,11 +35,6 @@ public class WidgetConfigManager {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-        // Migrate old fixed fields -> settings map (backwards compatible)
-        for (WidgetData d : widgetDataMap.values()) {
-            if (d != null) d.migrateLegacyIntoSettings();
-        }
     }
 
     public static void save() {
@@ -58,7 +53,6 @@ public class WidgetConfigManager {
             d = new WidgetData();
             widgetDataMap.put(widgetId, d);
         }
-        d.migrateLegacyIntoSettings(); // safe no-op if already migrated
         return d;
     }
 
@@ -72,24 +66,9 @@ public class WidgetConfigManager {
         String id = widget.getName();
         WidgetData data = dataFor(id);
 
-        // Base widget fields
-        widget.x = data.x;
-        widget.y = data.y;
-        widget.enabled = data.enabled;
-
-        // Existing style fields (still supported)
-        widget.style.drawBackground = getBool(id, "drawBackground", widget.style.drawBackground);
-        widget.style.backgroundColor = getInt(id, "backgroundColor", widget.style.backgroundColor);
-        widget.style.textColor = getInt(id, "textColor", widget.style.textColor);
-        widget.style.drawBorder = getBool(id, "drawBorder", widget.style.drawBorder);
-        widget.style.borderColor = getInt(id, "borderColor", widget.style.borderColor);
-
-        // Ensure defaults exist in the file after first register (optional but handy)
-        setBool(id, "drawBackground", widget.style.drawBackground, false);
-        setInt(id, "backgroundColor", widget.style.backgroundColor, false);
-        setInt(id, "textColor", widget.style.textColor, false);
-        setBool(id, "drawBorder", widget.style.drawBorder, false);
-        setInt(id, "borderColor", widget.style.borderColor, false);
+        data.x = widget.x;
+        data.y = widget.y;
+        data.enabled = widget.enabled;
     }
 
     /**
@@ -108,13 +87,6 @@ public class WidgetConfigManager {
         data.y = widget.y;
         data.enabled = widget.isEnabled();
 
-        // Store style in settings map (so the modal can keep working)
-        setBool(id, "drawBackground", widget.style.drawBackground, false);
-        setInt(id, "backgroundColor", widget.style.backgroundColor, false);
-        setInt(id, "textColor", widget.style.textColor, false);
-        setBool(id, "drawBorder", widget.style.drawBorder, false);
-        setInt(id, "borderColor", widget.style.borderColor, false);
-
         save();
     }
 
@@ -123,42 +95,15 @@ public class WidgetConfigManager {
         save();
     }
 
+    public static void clearSetting(String widgetId, String key, boolean autosave) {
+        WidgetData d = dataFor(widgetId);
+        if (d.settings.remove(key) != null && autosave) save();
+    }
+
     // ------------------------------------------------------------
     // Generic per-widget setting getters/setters
     // These are what your dynamic settings UI should use.
     // ------------------------------------------------------------
-
-    public static boolean getBool(HudWidget widget, String key, boolean def) {
-        return getBool(widget.getName(), key, def);
-    }
-
-    public static int getInt(HudWidget widget, String key, int def) {
-        return getInt(widget.getName(), key, def);
-    }
-
-    public static float getFloat(HudWidget widget, String key, float def) {
-        return getFloat(widget.getName(), key, def);
-    }
-
-    public static String getString(HudWidget widget, String key, String def) {
-        return getString(widget.getName(), key, def);
-    }
-
-    public static void setBool(HudWidget widget, String key, boolean value) {
-        setBool(widget.getName(), key, value, true);
-    }
-
-    public static void setInt(HudWidget widget, String key, int value) {
-        setInt(widget.getName(), key, value, true);
-    }
-
-    public static void setFloat(HudWidget widget, String key, float value) {
-        setFloat(widget.getName(), key, value, true);
-    }
-
-    public static void setString(HudWidget widget, String key, String value) {
-        setString(widget.getName(), key, value, true);
-    }
 
     // --- String widgetId overloads (useful in mixins) ---
 
@@ -247,42 +192,5 @@ public class WidgetConfigManager {
 
         /** New: generic settings map */
         public Map<String, JsonElement> settings = new HashMap<>();
-
-        // Legacy fields (so old JSON still loads). Gson will fill these if present.
-        // We migrate them into settings once on load/register.
-        public Boolean drawBackground;
-        public Integer backgroundColor;
-        public Integer textColor;
-        public Boolean drawBorder;
-        public Integer borderColor;
-
-        public void migrateLegacyIntoSettings() {
-            if (settings == null) settings = new HashMap<>();
-
-            // Only migrate if legacy value exists AND settings doesn't already have it
-            if (drawBackground != null && !settings.containsKey("drawBackground")) {
-                settings.put("drawBackground", new JsonPrimitive(drawBackground));
-            }
-            if (backgroundColor != null && !settings.containsKey("backgroundColor")) {
-                settings.put("backgroundColor", new JsonPrimitive(backgroundColor));
-            }
-            if (textColor != null && !settings.containsKey("textColor")) {
-                settings.put("textColor", new JsonPrimitive(textColor));
-            }
-            if (drawBorder != null && !settings.containsKey("drawBorder")) {
-                settings.put("drawBorder", new JsonPrimitive(drawBorder));
-            }
-            if (borderColor != null && !settings.containsKey("borderColor")) {
-                settings.put("borderColor", new JsonPrimitive(borderColor));
-            }
-
-            // Optional: clear legacy to keep file clean on next save
-            // (safe because values are now in settings)
-            drawBackground = null;
-            backgroundColor = null;
-            textColor = null;
-            drawBorder = null;
-            borderColor = null;
-        }
     }
 }

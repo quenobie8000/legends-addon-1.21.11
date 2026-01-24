@@ -1,5 +1,6 @@
 package legends.ultra.cool.addons.hud.widget.otherTypes;
 
+import legends.ultra.cool.addons.data.WidgetConfigManager;
 import legends.ultra.cool.addons.hud.HudWidget;
 import net.minecraft.client.gui.DrawContext;
 
@@ -41,10 +42,36 @@ public class NameplateWidget extends HudWidget {
 
     @Override
     public List<HudSetting> getSettings() {
+        final String w = this.getName(); // or a constant like "Nameplates"
+
         return List.of(
-                HudSetting.slider("yOffset", "Height",0f,2f,0.05f),
-                HudSetting.slider("scale", "Scale",0.1f, 2f, 0.05f),
-                HudSetting.slider("range", "Block range",1f, 100f, 1f)
+                HudSetting.slider(
+                        "yOffset", "Height",
+                        0f, 2f, 0.05f,
+                        () -> true,
+                        () -> WidgetConfigManager.getFloat(w, "yOffset", 1f),
+                        v -> WidgetConfigManager.setFloat(w, "yOffset", (float) v, true)
+                ),
+                HudSetting.slider(
+                        "scale", "Scale",
+                        0.1f, 2f, 0.05f,
+                        () -> true,
+                        () -> WidgetConfigManager.getFloat(w, "scale", 1f),
+                        v -> WidgetConfigManager.setFloat(w, "scale", (float) v, true)
+                ),
+                HudSetting.slider(
+                        "range", "Block range",
+                        1f, 100f, 1f,
+                        () -> true,
+                        () -> WidgetConfigManager.getFloat(w, "range", 50f),
+                        v -> WidgetConfigManager.setFloat(w, "range", (float) v, true)
+                ),
+                HudSetting.color(
+                        "bgColor", "Nameplate Color",
+                        () -> true,
+                        () -> WidgetConfigManager.getInt(w, "bgColor", 0xFF520016),
+                        c -> WidgetConfigManager.setInt(w, "bgColor", c, true)
+                )
         );
     }
 }

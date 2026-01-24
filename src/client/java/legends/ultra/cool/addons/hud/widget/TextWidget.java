@@ -1,5 +1,6 @@
 package legends.ultra.cool.addons.hud.widget;
 
+import legends.ultra.cool.addons.data.WidgetConfigManager;
 import legends.ultra.cool.addons.hud.HudWidget;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -7,55 +8,41 @@ import net.minecraft.client.gui.DrawContext;
 import java.util.List;
 
 public class TextWidget extends HudWidget {
-    private final String text;
 
-    public TextWidget(int x, int y, String text) {
+    public TextWidget(int x, int y) {
         super("Text", x, y);
-        this.text = text;
     }
 
     @Override
     public void render(DrawContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
 
+        // READ LIVE VALUES (no cached fields)
+        final String w = getName();
+        boolean bgToggle = WidgetConfigManager.getBool(w, "bgToggle", true);
+        int bgColor = WidgetConfigManager.getInt(w, "bgColor", 0x80000000);
+        boolean brdToggle = WidgetConfigManager.getBool(w, "brdToggle", true);
+        int brdColor = WidgetConfigManager.getInt(w, "brdColor", 0xFFFFFFFF);
+        int textColor = WidgetConfigManager.getInt(w, "textColor", 0xFFFFFFFF);
+
+        String text = "Example text widget";
         int width = client.textRenderer.getWidth(text);
         int height = client.textRenderer.fontHeight;
 
-        // background
-        if (style.drawBackground) {
-            context.fill(
-                    (int) (x - 3),
-                    (int) (y - 3),
-                    (int) (x + width + 2),
-                    (int) (y + height + 2),
-                    style.backgroundColor
-            );
+        if (bgToggle) {
+            context.fill((int) (x - 3), (int) (y - 3), (int) (x + width + 2), (int) (y + height + 2), bgColor);
         }
 
-        // border
-        if (style.drawBorder) {
-            context.drawBorder(
-                    (int) (x - 3),
-                    (int) (y - 3),
-                    width + 5,
-                    height + 5,
-                    style.borderColor
-            );
+        if (brdToggle) {
+            context.drawBorder((int) (x - 3), (int) (y - 3), width + 5, height + 5, brdColor);
         }
 
-        context.drawText(
-                client.textRenderer,
-                text,
-                (int) x,
-                (int) y,
-                style.textColor,
-                false
-        );
+        context.drawText(client.textRenderer, text, (int) x, (int) y, textColor, false);
     }
 
     @Override
     public int getWidth() {
-        return MinecraftClient.getInstance().textRenderer.getWidth(text);
+        return MinecraftClient.getInstance().textRenderer.getWidth("Example text widget");
     }
 
     @Override
@@ -65,12 +52,41 @@ public class TextWidget extends HudWidget {
 
     @Override
     public List<HudSetting> getSettings() {
+        final String w = this.getName();
+
         return List.of(
-                HudSetting.toggle("drawBackground", "Background"),
-                HudSetting.color("backgroundColor", "BG Color"),
-                HudSetting.toggle("drawBorder", "Border"),
-                HudSetting.color("borderColor", "Border Color"),
-                HudSetting.color("textColor", "Text Color")
+                HudSetting.toggle(
+                        "bgToggle", "Background",
+                        () -> true,
+                        () -> WidgetConfigManager.getBool(w, "bgToggle", true),
+                        b -> WidgetConfigManager.setBool(w, "bgToggle", b, true)
+                ),
+                HudSetting.color(
+                        "bgColor", "BG Color",
+                        () -> WidgetConfigManager.getBool(w, "bgToggle", true),
+                        () -> WidgetConfigManager.getInt(w, "bgColor", 0x80000000),
+                        c -> WidgetConfigManager.setInt(w, "bgColor", c, true)
+                ),
+
+                HudSetting.toggle(
+                        "brdToggle", "Border",
+                        () -> true,
+                        () -> WidgetConfigManager.getBool(w, "brdToggle", true),
+                        b -> WidgetConfigManager.setBool(w, "brdToggle", b, true)
+                ),
+                HudSetting.color(
+                        "brdColor", "Border Color",
+                        () -> WidgetConfigManager.getBool(w, "brdToggle", true),
+                        () -> WidgetConfigManager.getInt(w, "brdColor", 0xFFFFFFFF),
+                        c -> WidgetConfigManager.setInt(w, "brdColor", c, true)
+                ),
+
+                HudSetting.color(
+                        "textColor", "Text Color",
+                        () -> true,
+                        () -> WidgetConfigManager.getInt(w, "textColor", 0xFFFFFFFF),
+                        c -> WidgetConfigManager.setInt(w, "textColor", c, true)
+                )
         );
     }
 }

@@ -2,19 +2,16 @@ package legends.ultra.cool.addons.mixin.client;
 
 import legends.ultra.cool.addons.data.WidgetConfigManager;
 import legends.ultra.cool.addons.util.ColorUtil;
-import legends.ultra.cool.addons.util.EntityDebug;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
+import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.render.entity.state.EntityRenderState;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
@@ -27,14 +24,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(EntityRenderer.class)
 public abstract class EntityRendererMultilineLabelMixin<S extends EntityRenderState> {
 
+    // IMPORTANT: make this match whatever the editor writes under (usually widget.getName()).
+    private static final String CFG = "Nameplates";
+
+    private static final Identifier NAMEPLATE_BORDER =
+            Identifier.of("legends-addon", "textures/gui/nameplate_border_grayscaled.png");
+
     @Inject(method = "renderLabelIfPresent", at = @At("HEAD"), cancellable = true)
-    private void legends$renderMultiline(S state, Text text, MatrixStack matrices, VertexConsumerProvider consumers, int light, CallbackInfo ci) {
-
+    private void legends$renderMultiline(
+            S state, Text text, MatrixStack matrices,
+            VertexConsumerProvider consumers, int light, CallbackInfo ci
+    ) {
         Vec3d pos = state.nameLabelPos;
-
-        float yOffset = WidgetConfigManager.getFloat("Nameplates", "yOffset", 1f);
-        float scale = WidgetConfigManager.getFloat("Nameplates", "scale", 1.0f);
-
         if (pos == null) return;
 
         String raw = text.getString();
@@ -45,8 +46,20 @@ public abstract class EntityRendererMultilineLabelMixin<S extends EntityRenderSt
 
         ci.cancel();
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        float yOffset = WidgetConfigManager.getFloat(CFG, "yOffset", 1f);
+        float scale = WidgetConfigManager.getFloat(CFG, "scale", 1.0f);
 
+        // This is the configurable tint color (now reading from SAME category)
+        int argb = WidgetConfigManager.getInt(CFG, "bgColor", 0xFF520016);
+
+        argb = ColorUtil.forceValueToMax(argb);
+
+        float a = ((argb >>> 24) & 0xFF) / 255f;
+        float r = ((argb >>> 16) & 0xFF) / 255f;
+        float g = ((argb >>>  8) & 0xFF) / 255f;
+        float b = ( argb         & 0xFF) / 255f;
+
+        MinecraftClient client = MinecraftClient.getInstance();
         TextRenderer tr = client.textRenderer;
 
         matrices.push();
@@ -55,10 +68,10 @@ public abstract class EntityRendererMultilineLabelMixin<S extends EntityRenderSt
         matrices.scale(0.025f * scale, -0.025f * scale, 0.025f * scale);
 
         Matrix4f mat = matrices.peek().getPositionMatrix();
-        int lineH = tr.fontHeight + 1;
-        float startY = (-(lines.length - 1) * lineH * 0.5f) - yOffset;
 
-        // Compute block dimensions (in nameplate pixel space)
+        int lineH = tr.fontHeight + 1;
+
+        // Compute dimensions (in nameplate pixel space)
         int maxW = 0;
         for (String s : lines) maxW = Math.max(maxW, tr.getWidth(s));
         int totalH = lines.length * lineH;
@@ -72,70 +85,57 @@ public abstract class EntityRendererMultilineLabelMixin<S extends EntityRenderSt
         float panelX = -panelW / 2f;
         float panelY = -padY - (panelH / 3);
 
-        int argb = 0xFF520016;
-
-//        for (ItemStack armor : mob.getArmorItems()) {
-//            if (armor.isEmpty()) continue;
-//
-//            int c = EntityDebug.getArmorColorARGB(armor);
-//            if (c != 0xFFff0044) { // found dyed leather
-//                argb = c;
-//                break;
-//            }
-//        }
-
-        argb = ColorUtil.forceValueToMax(argb);
-
-        float r = ((argb >> 16) & 0xFF) / 255f;
-        float g = ((argb >> 8) & 0xFF) / 255f;
-        float b = (argb & 0xFF) / 255f;
-        float a = ((argb >>> 24) & 0xFF) / 255f;
-
-//        float r = 82f;
-//        float g = 0f;
-//        float b = 22;
-//        float a = 1f;
-
-        int lit = LightmapTextureManager.applyEmission(light, 2);
-// always bright: LightmapTextureManager.MAX_LIGHT_COORDINATE
-
-
+        // Draw border/background WITH WORLD LIGHTING (no GUI layer)
         drawNineSlice(
                 consumers,
                 mat,
-                panelX,
-                panelY,
-                panelW,
-                panelH,
+                panelX, panelY,
+                panelW, panelH,
                 9, 9, 4,
-                r, g, b, a,
-                lit
+                r, g, b, 1f,
+                light
         );
+
+        // Draw the lines
+        float startY = (-(lines.length - 1) * lineH * 0.5f);
 
         for (int i = 0; i < lines.length; i++) {
             String s = lines[i];
             float x = -tr.getWidth(s) / 2.0f;
             float y = (startY + i * lineH);
 
+            // Use the same light as the renderer gave us (no forced emission)
             tr.draw(
                     s, x, y,
-                    -2130706433,
+                    0xFFFFFFFF,
                     false,
                     mat,
                     consumers,
                     TextRenderer.TextLayerType.NORMAL,
                     0,
-                    LightmapTextureManager.applyEmission(light, 2)
+                    light
             );
         }
 
         matrices.pop();
     }
 
-    private static final Identifier NAMEPLATE_BORDER =
-            Identifier.of("legends-addon", "textures/gui/nameplate_border_grayscaled.png");
+    private static void putVertex(
+            VertexConsumer vc,
+            Matrix4f mat,
+            float x, float y, float z,
+            float u, float v,
+            float r, float g, float b, float a,
+            int light
+    ) {
+        vc.vertex(mat, x, y, z);
+        vc.color(r, g, b, a);                 // or vc.colorRGB(...) if that’s what yours wants
+        vc.texture(u, v);
+        vc.overlay(net.minecraft.client.render.OverlayTexture.DEFAULT_UV);
+        vc.light(light);
+        vc.normal(0f, 1f, 0f);
+    }
 
-    // Draw a textured quad in nameplate-pixel space
     private static void drawQuad(
             VertexConsumer vc,
             Matrix4f mat,
@@ -144,11 +144,15 @@ public abstract class EntityRendererMultilineLabelMixin<S extends EntityRenderSt
             float r, float g, float b, float a,
             int light
     ) {
-        vc.vertex(mat, x1, y2, -0.01f).texture(u1, v2).color(r, g, b, a).light(light);
-        vc.vertex(mat, x2, y2, -0.01f).texture(u2, v2).color(r, g, b, a).light(light);
-        vc.vertex(mat, x2, y1, -0.01f).texture(u2, v1).color(r, g, b, a).light(light);
-        vc.vertex(mat, x1, y1, -0.01f).texture(u1, v1).color(r, g, b, a).light(light);
+        float z = -0.01f;
+
+        // (x1,y1) is top-left, (x2,y2) bottom-right in your nameplate space
+        putVertex(vc, mat, x1, y2, z, u1, v2, r, g, b, a, light);
+        putVertex(vc, mat, x2, y2, z, u2, v2, r, g, b, a, light);
+        putVertex(vc, mat, x2, y1, z, u2, v1, r, g, b, a, light);
+        putVertex(vc, mat, x1, y1, z, u1, v1, r, g, b, a, light);
     }
+
 
     private static void drawNineSlice(
             VertexConsumerProvider consumers,
@@ -160,13 +164,9 @@ public abstract class EntityRendererMultilineLabelMixin<S extends EntityRenderSt
             float r, float g, float b, float a,
             int light
     ) {
-        // Source texture coords (pixels -> UV)
         float cU = corner / (float) texW;
         float cV = corner / (float) texH;
-        float uMax = 1f;
-        float vMax = 1f;
 
-        // Dest coords
         float x0 = x;
         float y0 = y;
         float x1 = x + corner;
@@ -176,31 +176,25 @@ public abstract class EntityRendererMultilineLabelMixin<S extends EntityRenderSt
         float x3 = x + w;
         float y3 = y + h;
 
-        // Guard against tiny panels
-        if (w < corner * 2f) {
-            x2 = x1;
-        }
-        if (h < corner * 2f) {
-            y2 = y1;
-        }
+        if (w < corner * 2f) x2 = x1;
+        if (h < corner * 2f) y2 = y1;
 
-        VertexConsumer vc = consumers.getBuffer(RenderLayer.getGuiTextured(NAMEPLATE_BORDER)); // common way to draw GUI textures :contentReference[oaicite:0]{index=0}
+        // Use a WORLD layer, not GUI.
+        VertexConsumer vc = consumers.getBuffer(RenderLayer.getEntityTranslucent(NAMEPLATE_BORDER));
 
-        // 4 corners
-        drawQuad(vc, mat, x0, y0, x1, y1, 0f, 0f, cU, cV, r, g, b, a, light);                 // TL
-        drawQuad(vc, mat, x2, y0, x3, y1, uMax - cU, 0f, uMax, cV, r, g, b, a, light);        // TR
-        drawQuad(vc, mat, x0, y2, x1, y3, 0f, vMax - cV, cU, vMax, r, g, b, a, light);        // BL
-        drawQuad(vc, mat, x2, y2, x3, y3, uMax - cU, vMax - cV, uMax, vMax, r, g, b, a, light); // BR
+        // corners
+        drawQuad(vc, mat, x0, y0, x1, y1, 0f, 0f, cU, cV, r, g, b, a, light);
+        drawQuad(vc, mat, x2, y0, x3, y1, 1f - cU, 0f, 1f, cV, r, g, b, a, light);
+        drawQuad(vc, mat, x0, y2, x1, y3, 0f, 1f - cV, cU, 1f, r, g, b, a, light);
+        drawQuad(vc, mat, x2, y2, x3, y3, 1f - cU, 1f - cV, 1f, 1f, r, g, b, a, light);
 
-        // Edges (stretch)
-        drawQuad(vc, mat, x1, y0, x2, y1, cU, 0f, uMax - cU, cV, r, g, b, a, light);          // Top
-        drawQuad(vc, mat, x1, y2, x2, y3, cU, vMax - cV, uMax - cU, vMax, r, g, b, a, light); // Bottom
-        drawQuad(vc, mat, x0, y1, x1, y2, 0f, cV, cU, vMax - cV, r, g, b, a, light);          // Left
-        drawQuad(vc, mat, x2, y1, x3, y2, uMax - cU, cV, uMax, vMax - cV, r, g, b, a, light); // Right
+        // edges
+        drawQuad(vc, mat, x1, y0, x2, y1, cU, 0f, 1f - cU, cV, r, g, b, a, light);
+        drawQuad(vc, mat, x1, y2, x2, y3, cU, 1f - cV, 1f - cU, 1f, r, g, b, a, light);
+        drawQuad(vc, mat, x0, y1, x1, y2, 0f, cV, cU, 1f - cV, r, g, b, a, light);
+        drawQuad(vc, mat, x2, y1, x3, y2, 1f - cU, cV, 1f, 1f - cV, r, g, b, a, light);
 
-        // Center (fill)
-        drawQuad(vc, mat, x1, y1, x2, y2, cU, cV, uMax - cU, vMax - cV, r, g, b, a, light);
+        // center
+        drawQuad(vc, mat, x1, y1, x2, y2, cU, cV, 1f - cU, 1f - cV, r, g, b, a, light);
     }
-
-
 }
