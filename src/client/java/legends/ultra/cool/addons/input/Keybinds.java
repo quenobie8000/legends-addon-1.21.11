@@ -2,7 +2,6 @@ package legends.ultra.cool.addons.input;
 
 import legends.ultra.cool.addons.hud.HudEditorScreen;
 import legends.ultra.cool.addons.hud.HudManager;
-import legends.ultra.cool.addons.hud.widget.CounterWidget;
 import legends.ultra.cool.addons.hud.widget.TimerWidget;
 import legends.ultra.cool.addons.overlay.ContainerOverlay;
 import legends.ultra.cool.addons.util.EntityDebug;
@@ -12,12 +11,13 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.text.Text;
 import net.minecraft.util.hit.EntityHitResult;
+import  net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class Keybinds {
     public static KeyBinding OPEN_EDITOR;
+    public static final KeyBinding.Category MAIN_CATEGORY = KeyBinding.Category.create(Identifier.of("legends_addon"));
 
     public static void init() {
         KeyBinding openEditorKey = KeyBindingHelper.registerKeyBinding(
@@ -25,7 +25,8 @@ public class Keybinds {
                         "Toggle Editor",
                         InputUtil.Type.KEYSYM,
                         GLFW.GLFW_KEY_RIGHT_SHIFT,
-                        "Legends Addon"
+                        MAIN_CATEGORY
+
                 )
         );
 
@@ -33,28 +34,28 @@ public class Keybinds {
                 new KeyBinding(
                         "Dump Mob",
                         GLFW.GLFW_KEY_K,
-                        "Legends Addon"
+                        MAIN_CATEGORY
                 ));
 
         KeyBinding TOGGLE_TIMER = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding(
                         "Toggle Timer",
                         GLFW.GLFW_KEY_X,
-                        "Legends Addon"
+                        MAIN_CATEGORY
                 ));
 
         KeyBinding RESET_TIMER = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding(
                         "Reset Timer",
                         GLFW.GLFW_KEY_C,
-                        "Legends Addon"
+                        MAIN_CATEGORY
                 ));
 
         KeyBinding INV_DEBUG = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding(
                         "inv debug",
                         GLFW.GLFW_KEY_P,
-                        "Legends Addon debug"
+                        MAIN_CATEGORY
                 ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

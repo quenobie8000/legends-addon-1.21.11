@@ -101,5 +101,12 @@ public abstract class HudWidget {
         }
     }
 
+    protected void drawBorder(DrawContext ctx, int x, int y, int w, int h, int color) {
+        ctx.drawVerticalLine(x, y, y + h, color);
+        ctx.drawVerticalLine(x + w, y, y + h, color);
+        ctx.drawHorizontalLine(x, x + w, y, color);
+        ctx.drawHorizontalLine(x, x + w, y + h, color);
+    }
+
 }
 

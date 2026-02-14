@@ -60,7 +60,7 @@ public class TimerWidget extends HudWidget {
         }
 
         if (brdToggle) {
-            context.drawBorder((int) (x - 3), (int) (y - 3), width + 5, height + 5, brdColor);
+            drawBorder(context, (int) (x - 3), (int) (y - 3), width + 5, height + 5, brdColor);
         }
 
         context.drawText(client.textRenderer, text, (int) x, (int) y, textColor, false);

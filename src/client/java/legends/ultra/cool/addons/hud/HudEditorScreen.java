@@ -3,10 +3,13 @@ package legends.ultra.cool.addons.hud;
 import legends.ultra.cool.addons.data.WidgetConfigManager;
 import legends.ultra.cool.addons.hud.widget.settings.ColorPicker;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.input.MouseInput;
 import net.minecraft.text.Text;
 
+import javax.naming.Context;
 import java.util.List;
 import java.util.Optional;
 
@@ -84,7 +87,11 @@ public class HudEditorScreen extends Screen {
     // -----------------------------------
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(Click click, boolean doubled) {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
+
         int x = panelX();
 
         // If settings modal is open, handle it first
@@ -114,7 +121,7 @@ public class HudEditorScreen extends Screen {
                     return true;
                 }
             }
-            return super.mouseClicked(mouseX, mouseY, button);
+            return super.mouseClicked(new Click(mouseX, mouseY, new MouseInput(button,0)), false);
         }
 
         // Panel toggle clicks
@@ -157,14 +164,18 @@ public class HudEditorScreen extends Screen {
             }
         }
 
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(click, doubled);
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
+
         // Settings modal drag (slider / picker)
         if (isSettingsOpen()) {
-            if (colorPicker != null && colorPicker.mouseDragged(mouseX, mouseY, button, dx, dy)) return true;
+            if (colorPicker != null && colorPicker.mouseDragged(mouseX, mouseY, button, offsetX, offsetY)) return true;
 
             // Slider dragging: only if we started drag on a slider bar
             if (draggingSliderKey != null) {
@@ -202,19 +213,23 @@ public class HudEditorScreen extends Screen {
 
         // Normal canvas dragging
         if (dragging != null) {
-            dragging.x += dx;
-            dragging.y += dy;
+            dragging.x += offsetX;
+            dragging.y += offsetY;
 
             dragging.x = Math.max(0, Math.min(dragging.x, this.width - dragging.getWidth()));
             dragging.y = Math.max(0, Math.min(dragging.y, this.height - dragging.getHeight()));
             return true;
         }
 
-        return super.mouseDragged(mouseX, mouseY, button, dx, dy);
+        return super.mouseDragged(click, offsetX, offsetY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(Click click) {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
+
         if (isSettingsOpen()) {
             draggingSliderKey = null;
 
@@ -231,7 +246,7 @@ public class HudEditorScreen extends Screen {
             return true;
         }
 
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(click);
     }
 
     // -----------------------------------
@@ -483,7 +498,7 @@ public class HudEditorScreen extends Screen {
 
         // modal
         ctx.fill(x, y, x + w, y + MODAL_H, 0xFF111111);
-        ctx.drawBorder(x, y, w, MODAL_H, 0xFFFFFFFF);
+        drawBorder(ctx, x, y, w, MODAL_H, 0xFFFFFFF);
 
         // title
         ctx.drawText(textRenderer,
@@ -563,20 +578,21 @@ public class HudEditorScreen extends Screen {
         boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
         int bg = hovered ? 0xFF444444 : 0xFF333333;
         ctx.fill(x, y, x + w, y + h, bg);
-        ctx.drawBorder(x, y, w, h, 0xFF000000);
+        drawBorder(ctx, x, y, w, h, 0xFF000000);
         ctx.drawText(textRenderer, "Pick", x + 18, y + 3, 0xFFFFFF, false);
     }
 
     private void drawSwatch(DrawContext ctx, int x, int y, int color) {
         ctx.fill(x, y, x + 12, y + 12, color);
-        ctx.drawBorder(x, y, 12, 12, 0xFF000000);
+        drawBorder(ctx, x, y, 12, 12, 0xFF000000);
+
     }
 
     private void drawTogglePill(DrawContext ctx, int x, int y, int w, int h, boolean on, boolean enabled) {
         int bg = on ? 0xFF2ECC71 : 0xFF7F8C8D;
         if (!enabled) bg = 0xFF444444;
         ctx.fill(x, y, x + w, y + h, bg);
-        ctx.drawBorder(x, y, w, h, 0xFF000000);
+        drawBorder(ctx, x, y, w, h, 0xFF000000);
         ctx.drawText(textRenderer, on ? "ON" : "OFF", x + 10, y + 3, 0xFF000000, false);
     }
 
@@ -584,12 +600,12 @@ public class HudEditorScreen extends Screen {
         boolean hovered = mouseX >= x && mouseX <= x + RESET_W && mouseY >= y && mouseY <= y + RESET_H;
         int bg = hovered ? 0xFF555555 : 0xFF333333;
         ctx.fill(x, y, x + RESET_W, y + RESET_H, bg);
-        ctx.drawBorder(x, y, RESET_W, RESET_H, 0xFF000000);
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(x + 3, y - 4, 0);
-        ctx.getMatrices().scale(2f, 2f, 1f);
+        drawBorder(ctx, x, y, RESET_W, RESET_H, 0xFF000000);
+        ctx.getMatrices().pushMatrix();
+        ctx.getMatrices().translate(x + 3, y - 4);
+        ctx.getMatrices().scale(2f, 2f);
         ctx.drawText(textRenderer, "↺", 0, 0, 0xFFFFFF, false);
-        ctx.getMatrices().pop();
+        ctx.getMatrices().popMatrix();
     }
 
     private void drawSliderRow(DrawContext ctx, SettingsLayout l, int rowY, int mouseX, int mouseY,
@@ -603,7 +619,7 @@ public class HudEditorScreen extends Screen {
         int border = 0xFF000000;
 
         ctx.fill(barX, barY, barX + barW, barY + barH, bg);
-        ctx.drawBorder(barX, barY, barW, barH, border);
+        drawBorder(ctx, barX, barY, barW, barH, border);
 
         float t = (max == min) ? 0f : (value - min) / (max - min);
         t = Math.max(0f, Math.min(1f, t));
@@ -691,5 +707,12 @@ public class HudEditorScreen extends Screen {
         int rowY = l.startY + settingsRowIndex * (SETTINGS_ROW_H + SETTINGS_ROW_GAP);
         settingsRowIndex++;
         return rowY;
+    }
+
+    private void drawBorder(DrawContext ctx, int x, int y, int w, int h, int color) {
+        ctx.drawVerticalLine(x, y, y + h, color);
+        ctx.drawVerticalLine(x + w, y, y + h, color);
+        ctx.drawHorizontalLine(x, x + w, y, color);
+        ctx.drawHorizontalLine(x, x + w, y + h, color);
     }
 }

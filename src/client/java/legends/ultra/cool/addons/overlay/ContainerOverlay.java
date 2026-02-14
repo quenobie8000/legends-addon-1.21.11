@@ -1,18 +1,13 @@
 package legends.ultra.cool.addons.overlay;
 
-import legends.ultra.cool.addons.hud.HudManager;
-import legends.ultra.cool.addons.hud.widget.CounterWidget;
 import legends.ultra.cool.addons.mixin.client.HandledScreenAccessor;
 import legends.ultra.cool.addons.util.ContainerScan;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.screen.ScreenHandler;
 import net.minecraft.util.Identifier;
-
-import java.util.function.Function;
 
 public final class ContainerOverlay {
 
@@ -62,14 +57,6 @@ public final class ContainerOverlay {
         return isThatTitle;
     }
 
-    public final class RenderLayers {
-        public static final Function<Identifier, RenderLayer> GUI =
-                RenderLayer::getGuiTextured;
-
-        private RenderLayers() {
-        }
-    }
-
     /**
      * Draw a texture on top of the container background area
      */
@@ -89,7 +76,7 @@ public final class ContainerOverlay {
 
 
             // This draws the whole texture stretched to w/h.
-            ctx.drawTexture(RenderLayers.GUI, texture, x, y, 0, 0, w, h, w, h);
+            ctx.drawTexture(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, w, h, w, h);
         }
     }
 

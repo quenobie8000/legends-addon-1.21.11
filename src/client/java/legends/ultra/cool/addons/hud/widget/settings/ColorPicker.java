@@ -70,7 +70,7 @@ public class ColorPicker {
 
         // Panel background
         ctx.fill(x, y, x + w, y + h, 0xFF111111);
-        ctx.drawBorder(x, y, w, h, 0xFFFFFFFF);
+        drawBorder(ctx, x, y, w, h, 0xFFFFFFFF);
 
         // Title
         ctx.drawText(tr, "Color Picker", x + 8, y + 8, 0xFFFFFF, false);
@@ -88,7 +88,7 @@ public class ColorPicker {
         int previewTop = sliderY + sliderGap * 3 + 4;
         int previewBottom = previewTop + 22;
         ctx.fill(sliderX, previewTop, sliderX + sliderW, previewBottom, c);
-        ctx.drawBorder(sliderX, previewTop, sliderW, previewBottom - previewTop, 0xFF000000);
+        drawBorder(ctx, sliderX, previewTop, sliderW, previewBottom - previewTop, 0xFF000000);
 
         // Hex display (optional)
         String hex = String.format("#%08X", c);
@@ -164,7 +164,7 @@ public class ColorPicker {
         int fillW = (int) (w * (value / 255.0));
         ctx.fill(x, y, x + fillW, y + h, fillColor);
 
-        ctx.drawBorder(x, y, w, h, 0xFF000000);
+        drawBorder(ctx, x, y, w, h, 0xFF000000);
     }
 
     private static boolean isInside(double mx, double my, int x, int y, int w, int h) {
@@ -173,6 +173,13 @@ public class ColorPicker {
 
     private static int clamp(int v) {
         return Math.max(0, Math.min(255, v));
+    }
+
+    private static void drawBorder(DrawContext ctx, int x, int y, int w, int h, int color) {
+        ctx.drawVerticalLine(x, y, y + h, color);
+        ctx.drawVerticalLine(x + w, y, y + h, color);
+        ctx.drawHorizontalLine(x, x + w, y, color);
+        ctx.drawHorizontalLine(x, x + w, y + h, color);
     }
 }
 

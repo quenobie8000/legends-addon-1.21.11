@@ -4,14 +4,12 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.DyedColorComponent;
 import net.minecraft.component.type.NbtComponent;
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ArmorItem;
-import net.minecraft.item.DyeItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.text.Text;
-import net.minecraft.util.DyeColor;
+
+import java.util.Optional;
 
 public class EntityDebug {
 
@@ -23,21 +21,13 @@ public class EntityDebug {
             return;
         }
 
-        int argb = 0;
-        for (ItemStack armor : e.getArmorItems()) {
-            if (armor.isEmpty()) continue;
-
-            argb = getArmorColorARGB(armor);
-            // use argb
-        }
-
         String mobName =  mob.getDisplayName().getString();
         double[] mobStats = getMobStats(mob);
         double maxHp = mobStats[1];
         double itemDef = mobStats[2];
         double itemDmg = mobStats[3];
 
-        client.player.sendMessage(Text.literal("\nMob: " + mobName + "\nMaxHP: " + maxHp + "\ndef: " + itemDef + "\ndmg: " + itemDmg + "\n armor color: " + toHexARGB(argb)),false);
+        client.player.sendMessage(Text.literal("\nMob: " + mobName + "\nMaxHP: " + maxHp + "\ndef: " + itemDef + "\ndmg: " + itemDmg),false);
     }
 
     public static double[] getMobStats(LivingEntity e) {
@@ -47,25 +37,25 @@ public class EntityDebug {
 
         double maxHp = 0;
         double currentHp = 0;
-        double itemDef = readCustomInt(main, "def");
-        double itemDmg = readCustomInt(main, "dmg");
+        Optional<Object> itemDef = readCustomInt(main, "def");
+        Optional<Object> itemDmg = readCustomInt(main, "dmg");
 
         mobName =  e.getDisplayName().getString();
         if (mobName.matches(".*?(\\d+).*\\/(\\d+).*")) currentHp = Double.parseDouble(mobName.replaceAll(".*?(\\d+(?:[.,]\\d+)?).*?\\/.*?(\\d+(?:[.,]\\d+)?).*", "$1"));
         if (mobName.matches(".*?(\\d+).*\\/(\\d+).*")) maxHp = Double.parseDouble(mobName.replaceAll(".*?(\\d+(?:[.,]\\d+)?).*?\\/.*?(\\d+(?:[.,]\\d+)?).*", "$2"));
 
-        return new double[]{currentHp, maxHp, itemDef, itemDmg};
+        return new double[]{currentHp, maxHp, (double) itemDef.get(), (double) itemDmg.get()};
     }
 
-    private static int readCustomInt(ItemStack stack, String key) {
-        if (stack.isEmpty()) return 0;
+    private static Optional<Object> readCustomInt(ItemStack stack, String key) {
+        if (stack.isEmpty()) return Optional.of(0);
 
         // CUSTOM_DATA is stored as an NbtComponent in 1.20.5+ / 1.21+ item components :contentReference[oaicite:1]{index=1}
         NbtComponent custom = stack.get(DataComponentTypes.CUSTOM_DATA);
-        if (custom == null || custom.isEmpty()) return 0;
+        if (custom == null || custom.isEmpty()) return Optional.of(0);
 
         NbtCompound nbt = custom.copyNbt(); // copies the NBT payload :contentReference[oaicite:2]{index=2}
-        return nbt.contains(key) ? nbt.getInt(key) : 0;
+        return java.util.Optional.of(nbt.contains(key) ? nbt.getInt(key) : 0);
     }
 
     public static int getArmorColorARGB(ItemStack stack) {
