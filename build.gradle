@@ -42,6 +42,7 @@ dependencies {
 
 	//REI
 	modCompileOnly "me.shedaniel:RoughlyEnoughItems-api-fabric:21.11.814"
+	modCompileOnly "me.shedaniel:RoughlyEnoughItems-fabric:21.11.814"
 	modRuntimeOnly "me.shedaniel:RoughlyEnoughItems-fabric:21.11.814"
 
 	modApi "dev.architectury:architectury-fabric:19.0.1"
@@ -96,13 +97,13 @@ publishing {
 	}
 }
 
-def MODRINTH_MODS_DIR = System.getenv("LEGENDS_MODRINTH_MODS")  // set this env var
+def MODRINTH_MODS_DIR = "C:\\Users\\CHRISSo\\AppData\\Roaming\\ModrinthApp\\profiles\\1.21.11\\mods"
 
 tasks.register("devDeploy", Copy) {
 	dependsOn "remapJar"
 
 	from(tasks.remapJar) {
-		rename { "${project.archives_base_name}-${project.version}.jar" }
+		rename { "${project.name}-${project.version}.jar" }
 	}
 
 	if (MODRINTH_MODS_DIR == null || MODRINTH_MODS_DIR.trim().isEmpty()) {

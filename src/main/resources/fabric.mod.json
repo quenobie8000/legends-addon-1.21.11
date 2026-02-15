@@ -21,6 +21,9 @@
 		"client": [
 			"legends.ultra.cool.addons.LegendsAddonClient"
 		],
+		"rei_common": [
+			"legends.ultra.cool.addons.rei.LegendsReiCommonPlugin"
+		],
 		"rei_client": [
 			"legends.ultra.cool.addons.rei.LegendsReiPlugin"
 		]

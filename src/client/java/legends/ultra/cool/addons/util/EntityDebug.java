@@ -2,23 +2,26 @@ package legends.ultra.cool.addons.util;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.DyedColorComponent;
 import net.minecraft.component.type.NbtComponent;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.registry.Registries;
+import net.minecraft.storage.NbtWriteView;
 import net.minecraft.text.Text;
+import net.minecraft.util.ErrorReporter;
+import net.minecraft.util.Identifier;
 
 import java.util.Optional;
 
 public class EntityDebug {
 
-    public static void dumpTargetFiltered(LivingEntity e) {
+    public static String dumpTargetFiltered(LivingEntity e) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.world == null) return;
+        if (client.player == null || client.world == null) return null;
         if (!(e instanceof LivingEntity mob)) {
             client.player.sendMessage(Text.literal("[LegendsAddon] Target is not a LivingEntity"),false);
-            return;
+            return null;
         }
 
         String mobName =  mob.getDisplayName().getString();
@@ -27,7 +30,7 @@ public class EntityDebug {
         double itemDef = mobStats[2];
         double itemDmg = mobStats[3];
 
-        client.player.sendMessage(Text.literal("\nMob: " + mobName + "\nMaxHP: " + maxHp + "\ndef: " + itemDef + "\ndmg: " + itemDmg),false);
+        return "\nMob: " + mobName + "\nMaxHP: " + maxHp + "\ndef: " + itemDef + "\ndmg: " + itemDmg;
     }
 
     public static double[] getMobStats(LivingEntity e) {
@@ -50,7 +53,6 @@ public class EntityDebug {
     private static Optional<Object> readCustomInt(ItemStack stack, String key) {
         if (stack.isEmpty()) return Optional.of(0);
 
-        // CUSTOM_DATA is stored as an NbtComponent in 1.20.5+ / 1.21+ item components :contentReference[oaicite:1]{index=1}
         NbtComponent custom = stack.get(DataComponentTypes.CUSTOM_DATA);
         if (custom == null || custom.isEmpty()) return Optional.of(0);
 
@@ -58,20 +60,26 @@ public class EntityDebug {
         return java.util.Optional.of(nbt.contains(key) ? nbt.getInt(key) : 0);
     }
 
-    public static int getArmorColorARGB(ItemStack stack) {
-        DyedColorComponent dyed = stack.get(DataComponentTypes.DYED_COLOR);
-
-        if (dyed == null) {
-            return 0xFFFFFFFF; // no dye → white
+    public static NbtCompound getEntityFullNbt(LivingEntity entity) {
+        if (entity == null) {
+            return new NbtCompound();
         }
-
-        int rgb = dyed.rgb(); // 0xRRGGBB
-        return 0xFF000000 | rgb; // ARGB
+        try {
+            NbtWriteView writeView = NbtWriteView.create(ErrorReporter.EMPTY);
+            entity.writeData(writeView);
+            NbtCompound nbt = writeView.getNbt();
+            if (!nbt.contains("id")) {
+                Identifier id = Registries.ENTITY_TYPE.getId(entity.getType());
+                if (id != null) {
+                    nbt.putString("id", id.toString());
+                }
+            }
+            return nbt;
+        } catch (Exception e) {
+            return new NbtCompound();
+        }
     }
 
-    public static String toHexARGB(int argb) {
-        return String.format("%08X", argb);
-    }
 }
 
 

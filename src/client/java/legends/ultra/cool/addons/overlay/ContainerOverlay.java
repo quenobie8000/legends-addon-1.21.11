@@ -1,5 +1,6 @@
 package legends.ultra.cool.addons.overlay;
 
+import legends.ultra.cool.addons.LegendsAddon;
 import legends.ultra.cool.addons.mixin.client.HandledScreenAccessor;
 import legends.ultra.cool.addons.util.ContainerScan;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -15,7 +16,7 @@ public final class ContainerOverlay {
     }
 
     private static Identifier texture =
-            Identifier.of("legends-addon", "textures/gui/t1_inv.png");
+            Identifier.of(LegendsAddon.MOD_ID, "textures/gui/t1_inv.png");
 
 
     public static void init() {
@@ -36,7 +37,7 @@ public final class ContainerOverlay {
 
 
     public static void setTexture(String texturePath) {
-        texture = Identifier.of("legends-addon", texturePath);
+        texture = Identifier.of(LegendsAddon.MOD_ID, texturePath);
     }
 
     /**

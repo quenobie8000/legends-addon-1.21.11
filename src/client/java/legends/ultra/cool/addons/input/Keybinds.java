@@ -5,12 +5,18 @@ import legends.ultra.cool.addons.hud.HudManager;
 import legends.ultra.cool.addons.hud.widget.TimerWidget;
 import legends.ultra.cool.addons.overlay.ContainerOverlay;
 import legends.ultra.cool.addons.util.EntityDebug;
+import legends.ultra.cool.addons.util.ItemDebugDump;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.hit.EntityHitResult;
 import  net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
@@ -58,6 +64,25 @@ public class Keybinds {
                         MAIN_CATEGORY
                 ));
 
+        KeyBinding DUMP_HOVERED_ITEM = KeyBindingHelper.registerKeyBinding(
+                new KeyBinding(
+                        "Dump Hovered Item",
+                        GLFW.GLFW_KEY_O,
+                        MAIN_CATEGORY
+                ));
+
+        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
+            ScreenKeyboardEvents.afterKeyPress(screen).register((scr, key) -> {
+                if (!(scr instanceof HandledScreen<?>)) {
+                    return;
+                }
+
+                if (DUMP_HOVERED_ITEM.matchesKey(key)) {
+                    ItemDebugDump.dumpHoveredItem(client);
+                }
+            });
+        });
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
 
             //OPEN EDITOR
@@ -82,12 +107,6 @@ public class Keybinds {
                     }
                 }
             });
-
-            //INV DEBUG
-            while (INV_DEBUG.wasPressed()) {
-                ContainerOverlay.init();
-            }
-
         });
     }
 
@@ -102,7 +121,7 @@ public class Keybinds {
             return;
         }
 
-        EntityDebug.dumpTargetFiltered(mob);
+        client.player.sendMessage(Text.literal(EntityDebug.getEntityFullNbt(mob).toString()),false);
     }
 }
 
