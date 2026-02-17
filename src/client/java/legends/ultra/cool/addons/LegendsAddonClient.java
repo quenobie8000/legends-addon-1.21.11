@@ -8,6 +8,7 @@ import legends.ultra.cool.addons.hud.HudRenderer;
 import legends.ultra.cool.addons.hud.HudWidget;
 import legends.ultra.cool.addons.hud.widget.TimerWidget;
 import legends.ultra.cool.addons.hud.widget.otherTypes.NameplateWidget;
+import legends.ultra.cool.addons.hud.widget.otherTypes.NpcChatWidget;
 import legends.ultra.cool.addons.hud.widget.otherTypes.ReiWidget;
 import legends.ultra.cool.addons.hud.widget.CounterWidget;
 import legends.ultra.cool.addons.hud.widget.TextWidget;
@@ -38,12 +39,14 @@ public class LegendsAddonClient implements ClientModInitializer {
         TimerWidget timerWidget = new TimerWidget(10, 50);
         NameplateWidget nameplateWidget = new NameplateWidget();
         ReiWidget reiWidget = new ReiWidget();
+        NpcChatWidget npcChatWidget = new NpcChatWidget();
 
         addWidget(textWidget);
         addWidget(counterWidget);
         addWidget(timerWidget);
         addWidget(nameplateWidget);
         addWidget(reiWidget);
+        addWidget(npcChatWidget);
 
         for (HudWidget widget : HudManager.getWidgets()) {
             WidgetConfigManager.registerWidget(widget);

@@ -3,6 +3,7 @@
   "package": "legends.ultra.cool.addons.mixin.client",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ChatHudMixin",
     "EntityRendererDisplayNameMixin",
     "EntityRendererMultilineLabelMixin",
     "EntityRenderStateAccessor",
